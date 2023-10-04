@@ -2,8 +2,11 @@ package filter
 
 import (
 	"fmt"
+	"hash/crc32"
 	"reflect"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/alibaba/MongoShake/v2/oplog"
 
@@ -69,6 +72,40 @@ func (filter *AutologousFilter) Filter(log *oplog.PartialLog) bool {
 	// for namespace. we filter noop operation and collection name
 	// that are admin, local, mongoshake, mongoshake_conflict
 	return filter.FilterNs(log.Namespace)
+}
+
+type XUUIDFilter struct {
+	key   string
+	shard int64
+	total int64
+}
+
+func NewXIntFilter(key string, shard int64, total int64) OplogFilter {
+	return &XUUIDFilter{
+		key:   key,
+		shard: shard,
+		total: total,
+	}
+}
+
+func (filter *XUUIDFilter) Filter(log *oplog.PartialLog) bool {
+	o := log.Object.Map()
+
+	x, ok := o[filter.key]
+	if !ok {
+		return false
+	}
+
+	switch i := x.(type) {
+	case primitive.Binary:
+		return int64(crc32.ChecksumIEEE(i.Data))%filter.total != filter.shard
+	case int32:
+		return int64(i)%filter.total != filter.shard
+	case int64:
+		return i%filter.total != filter.shard
+	}
+
+	return false
 }
 
 type NoopFilter struct {
