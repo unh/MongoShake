@@ -2,8 +2,10 @@ package collector
 
 import (
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"strings"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/alibaba/MongoShake/v2/collector/ckpt"
 	conf "github.com/alibaba/MongoShake/v2/collector/configure"
@@ -12,8 +14,6 @@ import (
 	utils "github.com/alibaba/MongoShake/v2/common"
 	"github.com/alibaba/MongoShake/v2/oplog"
 	"github.com/alibaba/MongoShake/v2/quorum"
-
-	"strings"
 
 	nimo "github.com/gugemichael/nimo4go"
 	LOG "github.com/vinllen/log4go"
@@ -140,6 +140,8 @@ func NewOplogSyncer(
 			conf.Options.FilterNamespaceBlack)
 		filterList = append(filterList, namespaceFilter)
 	}
+
+	filterList = append(filterList, filter.NewXIntFilter("id", 0, 128))
 
 	// oplog filters. drop the oplog if any of the filter
 	// list returns true. The order of all filters is not significant.

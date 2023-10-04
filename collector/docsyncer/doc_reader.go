@@ -3,10 +3,12 @@ package docsyncer
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+
+	"go.mongodb.org/mongo-driver/bson"
+
 	conf "github.com/alibaba/MongoShake/v2/collector/configure"
 	utils "github.com/alibaba/MongoShake/v2/common"
-	"go.mongodb.org/mongo-driver/bson"
-	"sync/atomic"
 
 	LOG "github.com/vinllen/log4go"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -250,13 +252,20 @@ func (reader *DocumentReader) NextDoc() (doc bson.Raw, err error) {
 	atomic.AddInt32(&reader.concurrency, 1)
 	defer atomic.AddInt32(&reader.concurrency, -1)
 
-	if !reader.docCursor.Next(reader.ctx) {
-		if err := reader.docCursor.Err(); err != nil {
-			reader.releaseCursor()
-			return nil, err
+	for {
+		if !reader.docCursor.Next(reader.ctx) {
+			if err := reader.docCursor.Err(); err != nil {
+				reader.releaseCursor()
+				return nil, err
+			} else {
+				LOG.Info("reader[%s] finish", reader.String())
+				return nil, nil
+			}
+		}
+		if reader.docCursor.Current.Lookup("x").AsInt32()%128 != 0 {
+			continue
 		} else {
-			LOG.Info("reader[%s] finish", reader.String())
-			return nil, nil
+			break
 		}
 	}
 
